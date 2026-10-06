@@ -5,11 +5,11 @@ export default defineConfig({
   title: "Blume ドキュメント",
   description: "wagner-tdbax が管理する Blume ドキュメントサイト",
   
-  // GitHub Pagesでサブディレクトリ（/Blume/）として公開するために必須の設定
-  base: "/Blume", 
+  // ❌ 最上位（ここ）に書いてあった `base: "/Blume"` を削除します。
 
   deployment: {
-    // サイトの絶対URL（SEOやAI連携のためのパス解決に利用されます）
+    // ⭕️ base と site はこのように deployment の中にまとめて記述します
+    base: "/Blume", 
     site: "https://github.io",
   },
 });
