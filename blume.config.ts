@@ -8,15 +8,13 @@ export default defineConfig({
   title: "Blume ドキュメント",
   description: "wagner-tdbax が管理する Blume ドキュメントサイト",
 
-  // ❌ 最上位（ここ）に書いてあった `base: "/Blume"` を削除します。
   deployment: {
-    // ⭕️ base と site はこのように deployment の中にまとめて記述します
-    base: "/Blume", 
-    site: "https://github.io",
+    // ⭕️ GitHub Pages（本番）の時は "/Blume"、ローカルの時は空文字または未指定（ルート）にします
+    base: isProd ? "/Blume" : "", 
 
-    // GitHub Pages用には完全なURL（サブパス含む）を指定、ローカルでは "/" にする
-    // site: isProd 
-    //   ? "https://wagner-tdbax.github.io/Blume" 
-    //   : "http://localhost:4321", // Blume（Astroベース）のデフォルトポート
+    // ⭕️ GitHub Pages（本番）の時は完全なURL、ローカルの時はローカルサーバーのURLにします
+    site: isProd 
+      ? "https://wagner-tdbax.github.io/Blume" 
+      : "http://localhost:4321",
   },
 });
