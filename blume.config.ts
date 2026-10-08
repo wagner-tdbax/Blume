@@ -6,7 +6,7 @@ const isProd = process.env.GITHUB_ACTIONS === "true";
 
 export default defineConfig({
   title: "Blume ドキュメント",
-  description: "wagner-tdbax が管理する Blume ドキュメントサイト",
+  description: "wagner が管理する Blume ドキュメントサイト",
 
   deployment: {
     // ⭕️ GitHub Pages（本番）の時は "/Blume"、ローカルの時は空文字または未指定（ルート）にします
