@@ -61,6 +61,22 @@ In this work we propose the Transformer, a model architecture eschewing recurren
 
 背景
 
+The goal of reducing sequential computation also forms the foundation of the Extended Neural GPU [[16]](#16), ByteNet [[18]](#18) and ConvS2S [[9]](#9), all of which use convolutional neural networks as basic building block, computing hidden representations in parallel for all input and output positions. In these models, the number of operations required to relate signals from two arbitrary input or output positions grows in the distance between positions, linearly for ConvS2S and logarithmically for ByteNet. This makes it more difficult to learn dependencies between distant positions [[12]](#12). In the Transformer this is reduced to a constant number of operations, albeit at the cost of reduced effective resolution due to averaging attention-weighted positions, an effect we counteract with Multi-Head Attention as described in section 3.2.
+
+逐次的な計算を削減するという目標は、Extended Neural GPU [[16]](#16)、ByteNet [[18]](#18)、およびConvS2S [[9]](#9)の設計の基礎ともなっています。これらはいずれも畳み込みニューラルネットワークを基本構成要素として採用し、すべての入力および出力位置について隠れ表現を並列に計算するものです。これらのモデルでは、任意の2つの入力位置または出力位置の信号を関連付けるために必要な演算数は、それらの位置間の距離に応じて増加します（ConvS2Sでは線形に、ByteNetでは対数的に増加）。そのため、離れた位置間にある依存関係を学習することが困難になります [[12]](#12)。一方、Transformerではこの演算数が定数にまで削減されています。ただし、その代償として、アテンションの重みに基づいて位置情報を平均化することによる有効解像度の低下が生じます。この影響については、セクション3.2で述べる「マルチヘッド・アテンション（Multi-Head Attention）」を用いることで相殺しています。
+
+Self-attention, sometimes called intra-attention is an attention mechanism relating different positions of a single sequence in order to compute a representation of the sequence. Self-attention has been used successfully in a variety of tasks including reading comprehension, abstractive summarization, textual entailment and learning task-independent sentence representations [[4]](#4) [[27]](#27) [[28]](#28) [[22]](#27).
+
+自己アテンション（イントラ・アテンションとも呼ばれる）は、単一のシーケンスの表現を計算するために、そのシーケンス内の異なる位置同士を関連付けるアテンション機構です。自己アテンションは、読解、抽象型要約、含意関係認識、タスクに依存しない文表現の学習など、様々なタスクにおいて有効に活用されています [[4]](#4) [[27]](#27) [[28]](#28) [[22]](#22)。
+
+End-to-end memory networks are based on a recurrent attention mechanism instead of sequence-aligned recurrence and have been shown to perform well on simple-language question answering and language modeling tasks [[34]](#34).
+
+End-to-endメモリネットワークは、系列に沿った再帰（sequence-aligned recurrence）の代わりに再帰的アテンション機構に基づいており、単純な言語を用いた質問応答や言語モデリングのタスクにおいて良好な性能を示すことが示されています [[34]](#34)。
+
+To the best of our knowledge, however, the Transformer is the first transduction model relying entirely on self-attention to compute representations of its input and output without using sequence-aligned RNNs or convolution. In the following sections, we will describe the Transformer, motivate self-attention and discuss its advantages over models such as [[17]](#17) [[18]](#18) and [[9]](#9).
+
+しかし、我々の知る限り、Transformerは、シーケンスに沿ったRNNや畳み込みを用いることなく、入力と出力の表現を計算するために完全に自己注意（self-attention）に依存する、最初のトランスダクション・モデルです。以降のセクションでは、Transformerについて説明し、自己注意を採用するに至った背景を述べるとともに、[[17]](#17) [[18]](#18)や[[9]](#9)といったモデルと比較した際の利点について論じます。
+
 ## 3 Model Architecture
 
 モデルのアーキテクチャ
@@ -157,9 +173,29 @@ In this work we propose the Transformer, a model architecture eschewing recurren
 
 結論
 
+In this work, we presented the Transformer, the first sequence transduction model based entirely on attention, replacing the recurrent layers most commonly used in encoder-decoder architectures with multi-headed self-attention.
+
+本研究では、エンコーダ・デコーダ・アーキテクチャにおいて一般的に用いられてきた再帰的（リカレント）な層をマルチヘッド・セルフ・アテンションに置き換え、完全にアテンションに基づく初のシーケンス変換モデルである「Transformer」を提案しました。
+
+For translation tasks, the Transformer can be trained significantly faster than architectures based on recurrent or convolutional layers. On both WMT 2014 English-to-German and WMT 2014 English-to-French translation tasks, we achieve a new state of the art. In the former task our best model outperforms even all previously reported ensembles.
+
+翻訳タスクにおいて、Transformerは、再帰層や畳み込み層に基づくアーキテクチャよりも大幅に高速に学習可能です。WMT 2014の英独および英仏翻訳タスクの双方において、我々は新たな最先端（SOTA）の性能を達成しました。特に英独翻訳タスクでは、我々の最良モデルは、これまでに報告されたあらゆるアンサンブル手法をも上回る性能を示しています。
+
+We are excited about the future of attention-based models and plan to apply them to other tasks. We plan to extend the Transformer to problems involving input and output modalities other than text and to investigate local, restricted attention mechanisms to efficiently handle large inputs and outputs such as images, audio and video. Making generation less sequential is another research goals of ours.
+
+私たちはアテンション・ベースのモデルの将来性に期待を寄せており、それらを他のタスクにも適用していく計画です。具体的には、テキスト以外の入出力モダリティを伴う問題へとTransformerを拡張することや、画像・音声・動画といった大規模な入出力を効率的に扱うための、局所的かつ制約されたアテンション機構を検討することを予定しています。また、生成処理における逐次的な性質を低減させることも、私たちの研究目標の一つです。
+
+The code we used to train and evaluate our models is available at [https://github.com/tensorflow/tensor2tensor](https://github.com/tensorflow/tensor2tensor).
+
+モデルの学習と評価に使用したコードは、[https://github.com/tensorflow/tensor2tensor](https://github.com/tensorflow/tensor2tensor) で公開されています。
+
 #### Acknowledgements
 
 謝辞
+
+We are grateful to Nal Kalchbrenner and Stephan Gouws for their fruitful comments, corrections and inspiration.
+
+有益なコメント、修正、そしてインスピレーションをくださったNal Kalchbrenner氏とStephan Gouws氏に感謝いたします。
 
 ## References
 
