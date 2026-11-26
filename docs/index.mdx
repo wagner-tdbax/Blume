@@ -66,8 +66,6 @@ $ cd
 $ pwd
 ~
 $ sudo apt install git
-$ git config --list
-$ git config --global init.defaultBranch main
 ～
 $ mkdir -p ~/Prods
 $ cd ~/Prods
@@ -78,8 +76,34 @@ $ cd ./[REPOSITORY NAME]
 $ pwd
 ~/Prods/[REPOSITORY NAME]
 $ git config --list
+$ git config --local user.name "[USER NAME]"
+$ git config --local user.email "[E-MAIL ADDRESS]"
+$
+```
+
+or
+
+```console
+～
+$ cd ./[REPOSITORY NAME]
+$ pwd
+~/Prods/[REPOSITORY NAME]
+$ git config --list
 $ git config user.name "[USER NAME]"
 $ git config user.email "[E-MAIL ADDRESS]"
+$
+```
+
+or
+
+```console
+～
+$ cd
+$ pwd
+~
+$ git config --list
+$ git config --global user.name "[USER NAME]"
+$ git config --global user.email "[E-MAIL ADDRESS]"
 $
 ```
 
@@ -169,6 +193,14 @@ $
 1. 番号付きリスト
 2. 番号付きリスト
 3. 番号付きリスト
+
+注釈1[^1]。
+注釈2[^2]。
+注釈3[^3]。
+
+[^1]: 注釈1。
+[^2]: 注釈2。
+[^3]: 注釈3。
 
 [yahoo!](https://www.yahoo.co.jp/)
 

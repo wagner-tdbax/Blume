@@ -83,7 +83,7 @@ To the best of our knowledge, however, the Transformer is the first transduction
 
 ![Figure 1:The Transformer - model architecture.](https://arxiv.org/html/1706.03762v7/Figures/ModalNet-21.png)
 
-Figure 1:The Transformer - model architecture.
+##### Figure 1:The Transformer - model architecture.
 
 図1：Transformer — モデルアーキテクチャ
 
@@ -91,9 +91,9 @@ Most competitive neural sequence transduction models have an encoder-decoder str
 
 高性能なニューラル系列変換モデルの多くは、エンコーダ・デコーダ構造を採用しています [[5]](#5) [[2]](#2) [[35]](#35)。この構造において、エンコーダはシンボル表現の入力系列 $$(x_1, \dots, x_n)$$ を、連続値表現の系列 $$\mathbf{z} = (z_1, \dots, z_n)$$ へと写像します。続いてデコーダは、$$\mathbf{z}$$ を受け取り、シンボルの出力系列 $$(y_1, \dots, y_m)$$ を要素ごとに生成します。各ステップにおいて、このモデルは自己回帰的 [[10]](#10) な性質を持ち、次のシンボルを生成する際に、それまでに生成されたシンボルを追加の入力として利用します。
 
-The Transformer follows this overall architecture using stacked self-attention and point-wise, fully connected layers for both the encoder and decoder, shown in the left and right halves of Figure 1, respectively.
+The Transformer follows this overall architecture using stacked self-attention and point-wise, fully connected layers for both the encoder and decoder, shown in the left and right halves of Figure [1](#figure-1the-transformer---model-architecture), respectively.
 
-Transformerは、図1の左側と右側にそれぞれ示されるエンコーダとデコーダの双方において、積層されたセルフアテンション層とポイントワイズ全結合層を用いた全体的なアーキテクチャを採用しています。
+Transformerは、図[1](#figure-1the-transformer---model-architecture)の左側と右側にそれぞれ示されるエンコーダとデコーダの双方において、積層されたセルフアテンション層とポイントワイズ全結合層を用いた全体的なアーキテクチャを採用しています。
 
 ### 3.1 Encoder and Decoder Stacks
 
@@ -119,61 +119,247 @@ The decoder is also composed of a stack of $$N=6$$ identical layers. In addition
 
 アテンション
 
+An attention function can be described as mapping a query and a set of key-value pairs to an output, where the query, keys, values, and output are all vectors. The output is computed as a weighted sum of the values, where the weight assigned to each value is computed by a compatibility function of the query with the corresponding key.
+
+アテンション関数は、クエリとキー・値のペアの集合を入力とし、それを出力へと写像するものとして記述できる。ここで、クエリ、キー、値、および出力はすべてベクトルである。出力は値の重み付き和として計算され、各値に割り当てられる重みは、クエリとそれに対応するキーとの間の適合性関数によって算出される。
+
 #### 3.2.1 Scaled Dot-Product Attention
 
 スケーリング付きドット積アテンション
+
+We call our particular attention "Scaled Dot-Product Attention" (Figure [2](#figure-2-left-scaled-dot-product-attention-right-multi-head-attention-consists-of-several-attention-layers-running-in-parallel)). The input consists of queries and keys of dimension $$d_k$$, and values of dimension $$d_v$$. We compute the dot products of the query with all keys, divide each by $$\sqrt{d_k}$$, and apply a softmax function to obtain the weights on the values.
+
+我々が用いるアテンション機構を「スケーリング付きドット積アテンション（Scaled Dot-Product Attention）」（図[2](#figure-2-left-scaled-dot-product-attention-right-multi-head-attention-consists-of-several-attention-layers-running-in-parallel)）と呼ぶ。入力は、次元数 $$d_k$$ のクエリ（query）およびキー（key）と、次元数 $$d_v$$ の値（value）から構成される。クエリとすべてのキーとの間でドット積を計算し、それぞれを $$\sqrt{d_k}$$ で除算した上で、ソフトマックス関数を適用することで、各値に対する重みを得る。
+
+In practice, we compute the attention function on a set of queries simultaneously, packed together into a matrix $$Q$$. The keys and values are also packed together into matrices $$K$$ and $$V$$. We compute the matrix of outputs as:
+	
+実際には、複数のクエリをまとめて行列 $$Q$$ として扱い、アテンション関数を一括して計算する。キーと値についても同様に、それぞれ行列 $$K$$ および $$V$$ にまとめる。このとき、出力行列は次のように計算される。
+
+$$\text{Attention}(Q, K, V) = \text{softmax}\left(\frac{QK^T}{\sqrt{d_k}}\right)V \quad \quad$$		(1)
+
+The two most commonly used attention functions are additive attention [[2]](#2), and dot-product (multiplicative) attention. Dot-product attention is identical to our algorithm, except for the scaling factor of $$\frac{1}{\sqrt{d_k}}$$. Additive attention computes the compatibility function using a feed-forward network with a single hidden layer. While the two are similar in theoretical complexity, dot-product attention is much faster and more space-efficient in practice, since it can be implemented using highly optimized matrix multiplication code.
+
+アテンション関数として最も一般的に用いられるものには、「加法型アテンション（additive attention）[[2]](#2)」と「ドット積（乗法型）アテンション」の2種類がある。ドット積アテンションは、$$\frac{1}{\sqrt{d_k}}$$ というスケーリング係数を除けば、我々のアルゴリズムと同一である。加法型アテンションでは、単一の隠れ層を持つフィードフォワードネットワークを用いて適合度（compatibility function）を計算する。理論的な計算量は両者で同程度であるが、ドット積アテンションの方が、高度に最適化された行列演算コードを用いて実装できるため、実際にははるかに高速であり、メモリ効率も優れている。
+
+While for small values of $$d_k$$ the two mechanisms perform similarly, additive attention outperforms dot product attention without scaling for larger values of dk [[3]](#3). We suspect that for large values of dk, the dot products grow large in magnitude, pushing the softmax function into regions where it has extremely small gradients[^1]. To counteract this effect, we scale the dot products by $$\frac{1}{\sqrt{d_k}}$$.
+
+$$d_k$$ が小さい場合には両者の性能は同程度であるが、$$d_k$$ が大きくなると、スケーリングを行わないドット積アテンションよりも加法型アテンションの方が優れた性能を示す[[3]](#3)ことが知られている。これは、$$d_k$$ が大きい場合、ドット積の値が大きくなりすぎてしまい、ソフトマックス関数の勾配が極めて小さくなる領域に押しやられてしまうためだと考えられる[^11]。この影響を打ち消すために、ドット積を $$\frac{1}{\sqrt{d_k}}$$ でスケーリングする。
 
 #### 3.2.2 Multi-Head Attention
 
 マルチヘッド・アテンション
 
+| Scaled Dot-Product Attention | Multi-Head Attention |
+| :---: | :---: |
+| ![Scaled Dot-Product Attention](https://arxiv.org/html/1706.03762v7/Figures/ModalNet-19.png) | ![Multi-Head Attention](https://arxiv.org/html/1706.03762v7/Figures/ModalNet-20.png) |
+| スケーリング付きドット積アテンション | マルチヘッド・アテンション |
+
+Scaled Dot-Product Attention
+
+スケーリング付きドット積アテンション
+
+![Scaled Dot-Product Attention](https://arxiv.org/html/1706.03762v7/Figures/ModalNet-19.png)
+
+Multi-Head Attention
+
+マルチヘッド・アテンション
+
+![Multi-Head Attention](https://arxiv.org/html/1706.03762v7/Figures/ModalNet-20.png)
+
+##### Figure 2: (left) Scaled Dot-Product Attention. (right) Multi-Head Attention consists of several attention layers running in parallel.
+
+図2: (左) スケーリング付きドット積アテンション。(右) マルチヘッド・アテンションは、並列に動作する複数のアテンション層から構成される。
+
+Instead of performing a single attention function with dmodel-dimensional keys, values and queries, we found it beneficial to linearly project the queries, keys and values $$h$$ times with different, learned linear projections to $$d_k$$, $$d_k$$ and $$d_v$$ dimensions, respectively. On each of these projected versions of queries, keys and values we then perform the attention function in parallel, yielding dv-dimensional output values. These are concatenated and once again projected, resulting in the final values, as depicted in Figure [2](#figure-2-left-scaled-dot-product-attention-right-multi-head-attention-consists-of-several-attention-layers-running-in-parallel).
+
+$$d_{model}$$ 次元のキー、バリュー、クエリを用いて単一のアテンション関数を実行する代わりに、クエリ、キー、バリューをそれぞれ異なる学習可能な線形写像によって $$h$$ 回線形射影し、$$d_k$$、$$d_k$$、$$d_v$$ 次元の空間へ写像する方が有効であることがわかった。こうして射影されたクエリ、キー、バリューの各セットに対して並列にアテンション関数を適用することで、$$d_v$$ 次元の出力値が得られる。これらを連結（結合）した上で再度線形射影を行うことで、最終的な値が得られる。この過程を図[2](#figure-2-left-scaled-dot-product-attention-right-multi-head-attention-consists-of-several-attention-layers-running-in-parallel)に示す。
+
+Multi-head attention allows the model to jointly attend to information from different representation subspaces at different positions. With a single attention head, averaging inhibits this.
+
+マルチヘッド・アテンションを用いると、モデルは異なる位置において、異なる表現部分空間からの情報に同時に（複合的に）注目することができる。単一のアテンションヘッドを用いる場合、平均化が行われてしまうため、このようなことは妨げられてしまう。
+
+$$\text{MultiHead}(Q, K, V) = \text{Concat}(\text{head}_1, \dots, \text{head}_h)W^O$$
+
+where $$\text{head}_i = \text{Attention}(QW_i^Q, KW_i^K, VW_i^V)$$
+
+Where the projections are parameter matrices $$W_i^Q \in \mathbb{R}^{d_{model} \times d_k}$$, $$W_i^K \in \mathbb{R}^{d_{model} \times d_k}$$, $$W_i^V \in \mathbb{R}^{d_{model} \times d_v}$$ and $$W^O \in \mathbb{R}^{h d_v \times d_{model}}$$.
+
+ここで、各射影はパラメータ行列 $$W_i^Q \in \mathbb{R}^{d_{model} \times d_k}$$、$$W_i^K \in \mathbb{R}^{d_{model} \times d_k}$$、$$W_i^V \in \mathbb{R}^{d_{model} \times d_v}$$、および $$W^O \in \mathbb{R}^{h d_v \times d_{model}}$$ によって行われる。
+
+In this work we employ $$h=8$$ parallel attention layers, or heads. For each of these we use $$d_k = d_v = d_{model}/h = 64$$. Due to the reduced dimension of each head, the total computational cost is similar to that of single-head attention with full dimensionality.
+
+本研究では、$$h=8$$ 個の並列アテンション層（ヘッド）を採用する。各ヘッドにおいて、$$d_k = d_v = d_{model}/h = 64$$ とする。各ヘッドの次元数が削減されているため、計算コストの合計は、フル次元の単一ヘッド・アテンションを用いた場合と同程度となる。
+
 #### 3.2.3 Applications of Attention in our Model
 
 本モデルにおけるアテンションの適用
+
+The Transformer uses multi-head attention in three different ways:
+
+Transformerでは、マルチヘッド・アテンションが以下の3通りの方法で使用されます。
+
+* In "encoder-decoder attention" layers, the queries come from the previous decoder layer, and the memory keys and values come from the output of the encoder. This allows every position in the decoder to attend over all positions in the input sequence. This mimics the typical encoder-decoder attention mechanisms in sequence-to-sequence models such as [[38]](#38)[[2]](#2)[[9]](#9).
+
+* 「エンコーダ・デコーダ・アテンション」層では、クエリ（query）はデコーダの前の層から取得され、キー（key）およびバリュー（value）はエンコーダの出力から取得されます。これにより、デコーダ内の各位置は、入力シーケンス内のすべての位置に対してアテンションを向けることができます。これは、[[38]](#38)[[2]](#2)[[9]](#9) といったシーケンス・ツー・シーケンス（sequence-to-sequence）モデルにおける、一般的なエンコーダ・デコーダ・アテンションの仕組みを模したものです。
+
+* The encoder contains self-attention layers. In a self-attention layer all of the keys, values and queries come from the same place, in this case, the output of the previous layer in the encoder. Each position in the encoder can attend to all positions in the previous layer of the encoder.
+
+* エンコーダには、セルフ・アテンション層が含まれています。セルフ・アテンション層では、キー、バリュー、クエリのすべてが同じ場所、すなわちエンコーダ内の前の層の出力から取得されます。エンコーダ内の各位置は、エンコーダの前の層におけるすべての位置に対してアテンションを向けることができます。
+
+* Similarly, self-attention layers in the decoder allow each position in the decoder to attend to all positions in the decoder up to and including that position. We need to prevent leftward information flow in the decoder to preserve the auto-regressive property. We implement this inside of scaled dot-product attention by masking out (setting to −∞) all values in the input of the softmax which correspond to illegal connections. See Figure [2](#figure-2-left-scaled-dot-product-attention-right-multi-head-attention-consists-of-several-attention-layers-running-in-parallel).
+
+* 同様に、デコーダ内のセルフ・アテンション層では、デコーダ内の各位置が、その位置自身を含むそれ以前のすべての位置に対してアテンションを向けることができます。自己回帰的（auto-regressive）な性質を維持するためには、デコーダにおいて情報が左方向（過去の方向）へ流れることを防ぐ必要があります。これを実現するために、スケーリング付きドット積アテンション（scaled dot-product attention）の内部において、許可されていない接続に対応する値をソフトマックス（softmax）の入力段階でマスク（−∞に設定）します。図[2](#figure-2-left-scaled-dot-product-attention-right-multi-head-attention-consists-of-several-attention-layers-running-in-parallel)を参照してください。
 
 ### 3.3 Position-wise Feed-Forward Networks
 
 位置ごとのフィードフォワード・ネットワーク
 
+In addition to attention sub-layers, each of the layers in our encoder and decoder contains a fully connected feed-forward network, which is applied to each position separately and identically. This consists of two linear transformations with a ReLU activation in between.
+
+エンコーダおよびデコーダの各層には、アテンション・サブレイヤーに加えて、全結合フィードフォワード・ネットワークが含まれている。これは各位置に対して独立かつ同一に適用される。このネットワークは、2回の線形変換と、その間にあるReLU活性化関数で構成されている。
+	
+$$\text{FFN}(x) = \max(0, xW_1 + b_1)W_2 + b_2$$		(2)
+
+While the linear transformations are the same across different positions, they use different parameters from layer to layer. Another way of describing this is as two convolutions with kernel size 1. The dimensionality of input and output is $$d_{model}=512$$, and the inner-layer has dimensionality $$d_{ff}=2048$$.
+
+線形変換は各位置で共通であるが、層ごとに異なるパラメータが使用される。これを別の言い方で表現すると、カーネルサイズ1の畳み込みを2回行うことになります。入出力の次元数は $$d_{model}=512$$ であり、中間層の次元数は $$d_{ff}=2048$$ です。
+
 ### 3.4 Embeddings and Softmax
 
 埋め込みとソフトマックス
+
+Similarly to other sequence transduction models, we use learned embeddings to convert the input tokens and output tokens to vectors of dimension $$d_{\text{model}}$$. We also use the usual learned linear transformation and softmax function to convert the decoder output to predicted next-token probabilities. In our model, we share the same weight matrix between the two embedding layers and the pre-softmax linear transformation, similar to [[30]](#30). In the embedding layers, we multiply those weights by $$\sqrt{d_{\text{model}}}$$.
+
+他の系列変換モデルと同様に、我々は学習済みの埋め込みを用いて、入力トークンおよび出力トークンを $$d_{\text{model}}$$ 次元のベクトルに変換する。また、一般的な学習済みの線形変換とソフトマックス関数を用いて、デコーダの出力を、次に続くトークンの予測確率へと変換する。本モデルでは、[[30]](#30) と同様に、2つの埋め込み層とソフトマックス適用前の線形変換の間で、同一の重み行列を共有する。埋め込み層においては、これらの重みに $$\sqrt{d_{\text{model}}}$$ を乗じる。
 
 ### 3.5 Positional Encoding
 
 位置エンコーディング
 
+Since our model contains no recurrence and no convolution, in order for the model to make use of the order of the sequence, we must inject some information about the relative or absolute position of the tokens in the sequence. To this end, we add "positional encodings" to the input embeddings at the bottoms of the encoder and decoder stacks. The positional encodings have the same dimension dmodel as the embeddings, so that the two can be summed. There are many choices of positional encodings, learned and fixed [[9]](#9).
+
+本モデルには再帰構造や畳み込み構造が含まれていないため、シーケンス内の順序情報を活用するには、トークンの相対的あるいは絶対的な位置に関する情報を何らかの形で組み込む必要がある。この目的のため、エンコーダおよびデコーダスタックの最下層において、入力埋め込み（input embeddings）に「位置エンコーディング（positional encodings）」を加算する。位置エンコーディングは埋め込みと同じ次元数 $$d_{model}$$ を持つため、両者を加算することが可能である。位置エンコーディングには、学習によって獲得するものや固定されたものなど、さまざまな選択肢が存在する[[9]](#9)。
+
+In this work, we use sine and cosine functions of different frequencies:
+
+本研究では、異なる周波数を持つ正弦関数（サイン関数）および余弦関数（コサイン関数）を用いる。
+
+$$PE_{(pos, 2i)} = \sin(pos / 10000^{2i/d_{model}})$$
+
+$$PE_{(pos, 2i+1)} = \cos(pos / 10000^{2i/d_{model}})$$
+
+where pos is the position and $$i$$ is the dimension. That is, each dimension of the positional encoding corresponds to a sinusoid. The wavelengths form a geometric progression from $$2\pi$$ to $$10000 \cdot 2\pi$$. We chose this function because we hypothesized it would allow the model to easily learn to attend by relative positions, since for any fixed offset $$k$$, $$PE_{pos+k}$$ can be represented as a linear function of $$PE_{pos}$$.
+
+ここで、$$pos$$ は位置を、$$i$$ は次元を表す。すなわち、位置エンコーディングの各次元は正弦波に対応している。波長は $$2\pi$$ から $$10000 \cdot 2\pi$$ まで、等比数列を成すように設定されている。この関数を採用した理由は、任意の固定されたオフセット $$k$$ に対して、$$PE_{pos+k}$$ を $$PE_{pos}$$ の線形関数として表現できるため、モデルが相対的な位置に基づいてアテンション（注意）を向けることを容易に学習できると仮定したからである。
+
+We also experimented with using learned positional embeddings [[9]](#9) instead, and found that the two versions produced nearly identical results (see Table [3](#table-3-variations-on-the-transformer-architecture) row (E)). We chose the sinusoidal version because it may allow the model to extrapolate to sequence lengths longer than the ones encountered during training.
+
+また、学習可能な位置埋め込み（learned positional embeddings）[[9]](#9) を用いる手法についても実験を行ったが、両者の結果はほぼ同等であった（表[3](#table-3-variations-on-the-transformer-architecture)の行(E)を参照）。正弦波を用いた手法を採用したのは、これによって、モデルが学習時に遭遇したシーケンス長よりも長いシーケンスに対しても、外挿（extrapolation）が可能になるかもしれないと考えたためである。
+
 ## 4 Why Self-Attention
 
 なぜセルフアテンションなのか
+
+In this section we compare various aspects of self-attention layers to the recurrent and convolutional layers commonly used for mapping one variable-length sequence of symbol representations $$(x_1, \dots, x_n)$$ to another sequence of equal length $$(z_1, \dots, z_n)$$, with $$x_i, z_i \in \mathbb{R}^d$$, such as a hidden layer in a typical sequence transduction encoder or decoder. Motivating our use of self-attention we consider three desiderata.
+
+本節では、自己注意（セルフアテンション）層の様々な側面を、再帰型層や畳み込み層と比較する。これらの層は、ある可変長の記号表現系列 $$(x_1, \dots, x_n)$$ を、同じ長さの別の系列 $$(z_1, \dots, z_n)$$ （ここで $$x_i, z_i \in \mathbb{R}^d$$）へと写像するために一般的に用いられるものであり、典型的な系列変換（シーケンス・トランスダクション）モデルにおけるエンコーダやデコーダの隠れ層などがその例である。自己注意機構を採用する動機として、我々は3つの望ましい特性を考慮する。
+
+One is the total computational complexity per layer. Another is the amount of computation that can be parallelized, as measured by the minimum number of sequential operations required.
+
+1つ目は、層あたりの総計算量である。2つ目は、並列化可能な計算量であり、これは必要な逐次演算の最小回数によって測定される。
+
+The third is the path length between long-range dependencies in the network. Learning long-range dependencies is a key challenge in many sequence transduction tasks. One key factor affecting the ability to learn such dependencies is the length of the paths forward and backward signals have to traverse in the network. The shorter these paths between any combination of positions in the input and output sequences, the easier it is to learn long-range dependencies [[12]](#12). Hence we also compare the maximum path length between any two input and output positions in networks composed of the different layer types.
+
+3つ目は、ネットワーク内における長距離依存関係間のパス長である。長距離依存関係の学習は、多くの系列変換タスクにおいて重要な課題である。こうした依存関係を学習する能力に影響を与える重要な要因の一つが、ネットワーク内で順方向および逆方向の信号がたどるパスの長さである。入出力系列上の任意の2つの位置を結ぶパスが短ければ短いほど、長距離依存関係の学習は容易になる [[12]](#12)。したがって、我々は、異なる種類の層で構成されたネットワークにおいて、入出力系列上の任意の2点間を結ぶパスの最大長についても比較を行う。
+
+##### Table 1: Maximum path lengths, per-layer complexity and minimum number of sequential operations for different layer types.
+
+表1：異なる層タイプにおける最大パス長、層あたりの計算量、および逐次演算の最小回数。
+
+$$n$$ is the sequence length, $$d$$ is the representation dimension, $$k$$ is the kernel size of convolutions and $$r$$ the size of the neighborhood in restricted self-attention.
+
+ここで、$$n$$ は系列長、$$d$$ は表現の次元数、$$k$$ は畳み込みのカーネルサイズ、$$r$$ は制限付きセルフアテンションにおける近傍範囲のサイズを表す。
+
+|Layer Type|Complexity per Layer|Sequential Operations|Maximum Path Length|
+| :---: | :---: | :---: | :---: |
+|Self-Attention|$$O(n^2 \cdot d)$$|$$O(1)$$|$$O(1)$$|
+|Recurrent|$$O(n \cdot d^2)$$|$$O(n)$$|$$O(n)$$|
+|Convolutional|$$O(k \cdot n \cdot d^2)$$|$$O(1)$$|$$O(\log_k(n))$$|
+|Self-Attention (restricted)|$$O(r \cdot n \cdot d)$$|$$O(1)$$|$$O(n/r)$$|
+
+As noted in Table [1](#table-1-maximum-path-lengths-per-layer-complexity-and-minimum-number-of-sequential-operations-for-different-layer-types), a self-attention layer connects all positions with a constant number of sequentially executed operations, whereas a recurrent layer requires $$O(n)$$ sequential operations. In terms of computational complexity, self-attention layers are faster than recurrent layers when the sequence length n is smaller than the representation dimensionality $$d$$, which is most often the case with sentence representations used by state-of-the-art models in machine translations, such as word-piece [[38]](#38) and byte-pair [[31]](#31) representations. To improve computational performance for tasks involving very long sequences, self-attention could be restricted to considering only a neighborhood of size $$r$$ in the input sequence centered around the respective output position. This would increase the maximum path length to $$O(n/r)$$. We plan to investigate this approach further in future work.
+
+表[1](#table-1-maximum-path-lengths-per-layer-complexity-and-minimum-number-of-sequential-operations-for-different-layer-types)に示すように、セルフアテンション層は、一定回数の逐次的な演算によってすべての位置を接続する。一方、リカレント層では $$O(n)$$ 回の逐次的な演算が必要となる。計算量の観点から見ると、系列長 $$n$$ が表現の次元数 $$d$$ よりも小さい場合、セルフアテンション層はリカレント層よりも高速である。機械翻訳の最先端モデルで用いられる文表現（例えば、WordPiece [[38]](#38) や Byte-Pair [[31]](#31) による表現）においては、多くの場合この条件が満たされる。非常に長い系列を扱うタスクにおいて計算性能を向上させるために、セルフアテンションの対象を、各出力位置を中心とした入力系列上のサイズ $$r$$ の近傍のみに制限することも考えられる。この場合、最長パスの長さは $$O(n/r)$$ となる。このアプローチについては、今後の研究でさらに調査する予定である。
+
+A single convolutional layer with kernel width $$k < n$$ does not connect all pairs of input and output positions. Doing so requires a stack of $$O(n/k)$$ convolutional layers in the case of contiguous kernels, or $$O(\log_k(n))$$ in the case of dilated convolutions [[18]](#18), increasing the length of the longest paths between any two positions in the network. Convolutional layers are generally more expensive than recurrent layers, by a factor of $$k$$. Separable convolutions [[6]](#6), however, decrease the complexity considerably, to $$O(k \cdot n \cdot d + n \cdot d^2)$$. Even with $$k = n$$, however, the complexity of a separable convolution is equal to the combination of a self-attention layer and a point-wise feed-forward layer, the approach we take in our model.
+
+カーネル幅 $$k < n$$ の単一の畳み込み層では、すべての入力位置と出力位置のペアを接続することはできない。これを実現するには、連続的なカーネルを用いる場合は $$O(n/k)$$ 層、ダイレイテッド畳み込み（dilated convolution）[[18]](#18) を用いる場合は $$O(\log_k(n))$$ 層の畳み込み層を積み重ねる必要があり、ネットワーク内の任意の2点間における最長パスの長さが増大してしまう。一般に、畳み込み層はリカレント層よりも計算コストが高く、その差はカーネル幅 $$k$$ に比例する。しかし、セパラブル畳み込み（separable convolution）[[6]](#6) を用いると、計算量は $$O(k \cdot n \cdot d + n \cdot d^2)$$ まで大幅に低減される。さらに、$$k = n$$ の場合であっても、セパラブル畳み込みの計算量は、セルフアテンション層とポイントワイズ・フィードフォワード層を組み合わせたもの（本モデルで採用しているアプローチ）と同等となる。副次的な利点として、セルフアテンションを用いることで、より解釈性の高いモデルが得られる可能性がある。我々は、構築したモデルにおけるアテンション分布を調査し、その例を付録で提示して考察を行う。個々のアテンションヘッドがそれぞれ異なるタスクを遂行するよう明確に学習しているだけでなく、その多くが文の統語的・意味的構造に関連した挙動を示しているようである。
+
+As side benefit, self-attention could yield more interpretable models. We inspect attention distributions from our models and present and discuss examples in the appendix. Not only do individual attention heads clearly learn to perform different tasks, many appear to exhibit behavior related to the syntactic and semantic structure of the sentences.
+
+副次的な利点として、セルフアテンションを用いることで、より解釈性の高いモデルが得られる可能性がある。我々は、構築したモデルにおけるアテンション分布を調査し、その例を付録で提示して考察する。個々のアテンションヘッドがそれぞれ異なるタスクを実行するように学習されるだけでなく、その多くが、文の統語的および意味的な構造に関連した挙動を示すようである。
 
 ## 5 Training
 
 学習
 
+This section describes the training regime for our models.
+
+本節では、我々のモデルの学習体制について説明する。
+
 ### 5.1 Training Data and Batching
 
 学習データとバッチ処理
+
+We trained on the standard WMT 2014 English-German dataset consisting of about 4.5 million sentence pairs. Sentences were encoded using byte-pair encoding [[3]](#3), which has a shared source-target vocabulary of about 37000 tokens. For English-French, we used the significantly larger WMT 2014 English-French dataset consisting of 36M sentences and split tokens into a 32000 word-piece vocabulary [[38]](#38). Sentence pairs were batched together by approximate sequence length. Each training batch contained a set of sentence pairs containing approximately 25000 source tokens and 25000 target tokens.
+
+我々は、約450万の文ペアからなる標準的なWMT 2014英独データセットを用いて学習を行った。文のエンコードにはバイトペアエンコーディング（BPE）[[3]](#3)を用い、ソース言語とターゲット言語で共有される約37,000トークンの語彙を使用した。英仏言語ペアについては、より大規模なWMT 2014英仏データセット（3,600万文）を使用し、トークンを32,000個の「ワードピース（word-piece）」からなる語彙へと分割した[[38]](#38)。文ペアは、シーケンス長がおおよそ同じもの同士でバッチ化された。各学習バッチには、ソース言語のトークン約25,000個分およびターゲット言語のトークン約25,000個分に相当する文ペアが含まれている。
 
 ### 5.2 Hardware and Schedule
 
 ハードウェアとスケジュール
 
+We trained our models on one machine with 8 NVIDIA P100 GPUs. For our base models using the hyperparameters described throughout the paper, each training step took about 0.4 seconds. We trained the base models for a total of 100,000 steps or 12 hours. For our big models,(described on the bottom line of table [3](#table-3-variations-on-the-transformer-architecture)), step time was 1.0 seconds. The big models were trained for 300,000 steps (3.5 days).
+
+モデルの学習は、NVIDIA P100 GPUを8基搭載したマシン1台を用いて行った。論文全体を通じて記載されているハイパーパラメータを用いたベースモデルの場合、1ステップあたりの学習時間は約0.4秒であった。ベースモデルの学習は、合計10万ステップ（12時間）にわたって実施した。また、（表[3](#table-3-variations-on-the-transformer-architecture)の最下段に記載されている）大規模モデルについては、1ステップあたりの学習時間は1.0秒であった。この大規模モデルは、30万ステップ（3.5日間）にわたって学習を行った。
+
 ### 5.3 Optimizer
 
 最適化手法
+
+We used the Adam optimizer [[20]](#20) with $$\beta_1=0.9, \beta_2=0.98, \epsilon=10^{-9}$$. We varied the learning rate over the course of training, according to the formula:
+	
+最適化手法にはAdam [[20]](#20) を使用し、ハイパーパラメータは $$\beta_1=0.9, \beta_2=0.98, \epsilon=10^{-9}$$ とした。学習の過程において、学習率（learning rate）を以下の式に従って変化させた。
+
+$$lrate = d_{model}^{-0.5} \cdot \min(step\_num^{-0.5}, step\_num \cdot warmup\_steps^{-1.5})$$   (3)
+
+This corresponds to increasing the learning rate linearly for the first $$warmup\_steps$$ training steps, and decreasing it thereafter proportionally to the inverse square root of the step number. We used $$warmup\_steps = 4000$$.
+
+これは、最初の $$warmup\_steps$$ ステップ間は学習率を線形に増加させ、それ以降はステップ数の逆平方根に比例して学習率を減少させることに相当する。なお、$$warmup\_steps = 4000$$ とした。
 
 ### 5.4 Regularization
 
 正則化
 
+We employ three types of regularization during training:
+
+学習時には、以下の3種類の正則化手法を用いる。
+
 #### Residual Dropout
 
 残差ドロップアウト
 
+We apply dropout [[33]](#33) to the output of each sub-layer, before it is added to the sub-layer input and normalized. In addition, we apply dropout to the sums of the embeddings and the positional encodings in both the encoder and decoder stacks. For the base model, we use a rate of $$P_{drop} = 0.1$$.
+
+各サブレイヤーの出力に対してドロップアウト [[33]](#33) を適用する。このドロップアウトは、出力がサブレイヤーの入力に加算され、正規化される前に行われる。さらに、エンコーダーおよびデコーダーのスタックにおいて、埋め込み（embeddings）と位置エンコーディング（positional encodings）の和に対してもドロップアウトを適用する。ベースモデルでは、ドロップアウト率 $$P_{drop} = 0.1$$ を使用する。
+
 #### Label Smoothing
 
 ラベルスムージング
+
+During training, we employed label smoothing of value $$\epsilon_{ls} = 0.1$$ [[36]](#36). This hurts perplexity, as the model learns to be more unsure, but improves accuracy and BLEU score.
+
+学習中、$$\epsilon_{ls} = 0.1$$ の値を用いたラベル平滑化 [[36]](#36) を適用する。ラベル平滑化は、モデルが予測に対してより確信を持てなくなる（不確実性が高まる）ため、パープレキシティ（perplexity）の観点からは悪影響を及ぼすが、精度およびBLEUスコアは向上する。
 
 ## 6 Results
 
@@ -183,13 +369,140 @@ The decoder is also composed of a stack of $$N=6$$ identical layers. In addition
 
 機械翻訳
 
+##### Table 2:
+
+表2：
+
+The Transformer achieves better BLEU scores than previous state-of-the-art models on the English-to-German and English-to-French newstest2014 tests at a fraction of the training cost.
+
+Transformerは、英語からドイツ語および英語からフランス語への翻訳において、従来の最先端モデルよりも優れたBLEUスコアを、わずかな学習コストで達成している（テストセット：newstest2014）。
+
+|Model|BLEU EN-DE|BLEU EN-FR|Training Cost (FLOPs) EN-DE|Training Cost (FLOPs) EN-FR|
+| :---: | :---: | :---: | :---: | :---: |
+|ByteNet [[18]](#18)|23.75||||
+|Deep-Att + PosUnk [[39]](#39)||39.2||1.0⋅10²⁰|
+|GNMT + RL [[38]](#38)|24.6|39.92|2.3⋅10¹⁹|1.4⋅10²⁰|
+|ConvS2S [[9]](#9)|25.16|40.46|9.6⋅10¹⁸|1.5⋅10²⁰|
+|MoE [[32]](#32)|26.03|40.56|2.0⋅10¹⁹|1.2⋅10²⁰|
+|Deep-Att + PosUnk Ensemble [[39]](#39)||40.4||8.0⋅10²⁰|
+|GNMT + RL Ensemble [[38]](#38)|26.30|41.16|1.8⋅10²⁰|1.1⋅10²¹|
+|ConvS2S Ensemble [[9]](#9)|26.36|**41.29**|7.7⋅10¹⁹|1.2⋅10²¹|
+|Transformer (base model)|27.3|38.1|**3.3⋅10¹⁸**|**3.3⋅10¹⁸**|
+|Transformer (big)|**28.4**|**41.8**|2.3⋅10¹⁹|2.3⋅10¹⁹|
+
+On the WMT 2014 English-to-German translation task, the big transformer model (Transformer (big) in Table [2](#table-2)) outperforms the best previously reported models (including ensembles) by more than 2.0 BLEU, establishing a new state-of-the-art BLEU score of 28.4. The configuration of this model is listed in the bottom line of Table [3](#table-3-variations-on-the-transformer-architecture). Training took 3.5 days on 8 P100 GPUs. Even our base model surpasses all previously published models and ensembles, at a fraction of the training cost of any of the competitive models.
+
+WMT 2014の英独翻訳タスクにおいて、大規模なTransformerモデル（表[2](#table-2)の「Transformer (big)」）は、それまでに報告されていた最良のモデル（アンサンブルモデルを含む）を2.0 BLEU以上上回り、28.4という新たな最高（ステート・オブ・ジ・アート）のBLEUスコアを達成しました。このモデルの構成は、表[3](#table-3-variations-on-the-transformer-architecture)の最下行に記載されています。学習には、P100 GPU 8基を用いて3.5日間を要しました。我々のベースモデルでさえ、これまでに発表されたすべてのモデルやアンサンブル手法を上回る性能を示しており、しかもその学習コストは、比較対象となるどのモデルと比べてもごくわずかです。
+
+On the WMT 2014 English-to-French translation task, our big model achieves a BLEU score of 41.0, outperforming all of the previously published single models, at less than 1/4 the training cost of the previous state-of-the-art model. The Transformer (big) model trained for English-to-French used dropout rate $$P_{drop}$$=0.1, instead of 0.3.
+
+WMT 2014の英仏翻訳タスクにおいて、我々の「ビッグ（big）」モデルはBLEUスコア41.0を達成しました。これは、これまでに発表されたすべての単一モデルを凌駕する性能でありながら、当時の最先端モデルと比較して4分の1未満の学習コストで実現されています。英仏翻訳向けに学習させたTransformer（ビッグ）モデルでは、ドロップアウト率（$$P_{drop}$$）を0.3ではなく0.1に設定しました。
+
+For the base models, we used a single model obtained by averaging the last 5 checkpoints, which were written at 10-minute intervals. For the big models, we averaged the last 20 checkpoints. We used beam search with a beam size of 4 and length penalty $$\alpha=0.6$$ [[38]](#38). These hyperparameters were chosen after experimentation on the development set. We set the maximum output length during inference to input length + 50, but terminate early when possible [[38]](#38)].
+
+ベースモデルについては、10分間隔で保存された最後の5つのチェックポイントを平均化して得られた単一モデルを使用しました。ビッグモデルについては、最後の20個のチェックポイントを平均化しました。推論には、ビームサイズ4、長さペナルティ $$\alpha=0.6$$ のビームサーチを用いました[[38]](#38)。これらのハイパーパラメータは、開発セットを用いた実験を経て決定したものです。推論時の最大出力長は「入力長＋50」と設定しましたが、可能な場合には早期終了（early termination）を行いました[[38]](#38)。
+
+Table [2](#table-2) summarizes our results and compares our translation quality and training costs to other model architectures from the literature. We estimate the number of floating point operations used to train a model by multiplying the training time, the number of GPUs used, and an estimate of the sustained single-precision floating-point capacity of each GPU[^2].
+
+表[2](#table-2)に、我々の結果をまとめ、翻訳品質および学習コストを、先行研究における他のモデルアーキテクチャと比較して示します。モデルの学習に要した浮動小数点演算回数は、学習時間、使用したGPU[^12] の台数、および各GPUの持続的な単精度浮動小数点演算性能の推定値を掛け合わせることで算出しました。
+
 ### 6.2 Model Variations
 
 モデルのバリエーション
 
+##### Table 3: Variations on the Transformer architecture.
+
+表3：Transformerアーキテクチャのバリエーション。
+
+Unlisted values are identical to those of the base model. All metrics are on the English-to-German translation development set, newstest2013. Listed perplexities are per-wordpiece, according to our byte-pair encoding, and should not be compared to per-word perplexities.
+
+記載のない値は、ベースモデルと同一である。すべての指標は、英語からドイツ語への翻訳における開発セット「newstest2013」を用いて算出されたものである。ここに記載したパープレキシティは、我々が採用したバイトペアエンコーディング（BPE）に基づく「ワードピース（wordpiece）あたりの値」であり、単語単位のパープレキシティと比較すべきではない。
+
+||$$N$$|$$d_{\text{model}}$$|$$d_{\text{ff}}$$|$$h$$|$$d_{\text{k}}$$|$$d_{\text{v}}$$|$$P_{\text{d​r​o​p}}$$|$$\epsilon_{ls}$$|train steps|PPL(dev)|BLEU(dev)|params $$×10^{6}$$|
+| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+|base|6|512|2048|8|64|64|0.1|0.1|100K|4.92|25.8|65|
+|(A)||||1|512|512||||5.29|24.9||
+|(A)||||4|128|128||||5.00|25.5||
+|(A)||||16|32|32||||4.91|25.8||
+|(A)||||32|16|16||||5.01|25.4||
+|(B)|||||16|||||5.16|25.1|58|
+|(B)|||||32|||||5.01|25.4|60|
+|(C)|2|||||||||6.11|23.7|36|
+|(C)|4|||||||||5.19|25.3|50|
+|(C)|8|||||||||4.88|25.5|80|
+|(C)||256|||32|32||||5.75|24.5|28|
+|(C)||1024|||128|128||||4.66|26.0|168|
+|(C)|||1024|||||||5.12|25.4|53|
+|(C)|||4096|||||||4.75|26.2|90|
+|(D)|||||||0.0|||5.77|24.6||
+|(D)|||||||0.2|||4.95|25.5||
+|(D)||||||||0.0||4.67|25.3||
+|(D)||||||||0.2||5.47|25.7||
+|(E)|※１．|※１．|※１．|※１．|※１．|※１．|※１．|※１．|※１．|4.92|25.7||
+|big|6|1024|4096|16|||0.3||300K|**4.33**|**26.4**|213|
+
+※１．positional embedding instead of sinusoids
+
+※１．正弦波の代わりに位置埋め込みを用いる
+
+To evaluate the importance of different components of the Transformer, we varied our base model in different ways, measuring the change in performance on English-to-German translation on the development set, newstest2013. We used beam search as described in the previous section, but no checkpoint averaging. We present these results in Table [3](#table-3-variations-on-the-transformer-architecture).
+
+Transformerの各構成要素の重要性を評価するため、ベースモデルに様々な変更を加え、開発セットである「newstest2013」を用いた英独翻訳タスクにおける性能の変化を測定した。なお、前節で述べたビームサーチを用いたが、チェックポイントの平均化（checkpoint averaging）は行っていない。これらの結果を表[3](#table-3-variations-on-the-transformer-architecture)に示す。
+
+In Table [3](#table-3-variations-on-the-transformer-architecture) rows (A), we vary the number of attention heads and the attention key and value dimensions, keeping the amount of computation constant, as described in Section [3.2.2](#322-multi-head-attention). While single-head attention is 0.9 BLEU worse than the best setting, quality also drops off with too many heads.
+
+表[3](#table-3-variations-on-the-transformer-architecture)の(A)では、セクション [3.2.2](#322-multi-head-attention) で説明した通り、計算量を一定に保ったまま、アテンションヘッドの数、およびアテンションにおけるキー（key）とバリュー（value）の次元数を変化させた。シングルヘッドのアテンションは、最良の設定と比較してBLEUスコアが0.9低い。また、ヘッド数が多すぎても品質が低下することが確認された。
+
+In Table [3](#table-3-variations-on-the-transformer-architecture) rows (B), we observe that reducing the attention key size $$d_k$$ hurts model quality. This suggests that determining compatibility is not easy and that a more sophisticated compatibility function than dot product may be beneficial. We further observe in rows (C) and (D) that, as expected, bigger models are better, and dropout is very helpful in avoiding over-fitting. In row (E) we replace our sinusoidal positional encoding with learned positional embeddings [[9]](#9), and observe nearly identical results to the base model.
+
+表[3](#table-3-variations-on-the-transformer-architecture)の(B)からは、アテンションのキーの次元数 $$d_k$$ を小さくすると、モデルの品質が低下することがわかる。このことは、適合性（compatibility）の判定が容易ではないことを示唆しており、ドット積よりも洗練された適合性関数の方が有効である可能性がある。さらに(C)および(D)の結果から、予想通りモデルが大規模であるほど性能が向上すること、そしてドロップアウトが過学習の抑制に非常に有効であることが確認できる。行(E)では、正弦波を用いた位置エンコーディング（sinusoidal positional encoding）を学習可能な位置埋め込み（learned positional embeddings）[[9]](#9) に置き換えたが、ベースモデルとほぼ同等の結果が得られた。
+
 ### 6.3 English Constituency Parsing
 
 英語の構成素解析
+
+##### Table 4:
+
+表4：
+
+The Transformer generalizes well to English constituency parsing (Results are on Section 23 of WSJ)
+
+Transformerは英語の構成素解析（constituency parsing）に対しても良好な汎化性能を示す（結果はWSJのセクション23におけるもの）
+
+|Parser|Training|WSJ 23 F1|
+| :---: | :---: | :---: |
+|Vinyals & Kaiser el al. (2014) [37]|WSJ only, discriminative|88.3|
+|Petrov et al. (2006) [29]|WSJ only, discriminative|90.4|
+|Zhu et al. (2013) [40]|WSJ only, discriminative|90.4|
+|Dyer et al. (2016) [8]|WSJ only, discriminative|91.7|
+|Transformer (4 layers)|WSJ only, discriminative|91.3|
+|Zhu et al. (2013) [40]|semi-supervised|91.3|
+|Huang & Harper (2009) [14]|semi-supervised|91.3|
+|McClosky et al. (2006) [26]|semi-supervised|92.1|
+|Vinyals & Kaiser el al. (2014) [37]|semi-supervised|92.1|
+|Transformer (4 layers)|semi-supervised|92.7|
+|Luong et al. (2015) [23]|multi-task|93.0|
+|Dyer et al. (2016) [8]|generative|93.3|
+
+To evaluate if the Transformer can generalize to other tasks we performed experiments on English constituency parsing. This task presents specific challenges: the output is subject to strong structural constraints and is significantly longer than the input. Furthermore, RNN sequence-to-sequence models have not been able to attain state-of-the-art results in small-data regimes [[37]](#37).
+
+Transformerが他のタスクに対しても汎化できるかどうかを評価するため、英語の構成素解析に関する実験を行った。このタスクには特有の課題がある。出力には厳格な構造的制約が課されるうえ、入力よりも大幅に長くなるからである。さらに、RNNを用いた系列変換（sequence-to-sequence）モデルでは、データ量が少ない状況下において、最先端（state-of-the-art）の性能を達成できていない [[37]](#37)。
+
+We trained a 4-layer transformer with $$d_{model}$$=1024 on the Wall Street Journal (WSJ) portion of the Penn Treebank [[25]](#25), about 40K training sentences. We also trained it in a semi-supervised setting, using the larger high-confidence and BerkleyParser corpora from with approximately 17M sentences [[37]](#37). We used a vocabulary of 16K tokens for the WSJ only setting and a vocabulary of 32K tokens for the semi-supervised setting.
+
+我々は、Penn Treebank [[25]](#25) のWall Street Journal (WSJ) 部分（約4万文の学習データ）を用いて、モデル次元数（$$d_{model}$$）が1024の4層Transformerを学習させた。また、より大規模なコーパス（高信頼度コーパスおよびBerkeleyParserコーパス、計約1700万文）を用いた半教師あり学習も行った [[37]](#37)。語彙サイズは、WSJのみを用いる設定では1万6000トークン、半教師あり学習の設定では3万2000トークンとした。
+
+We performed only a small number of experiments to select the dropout, both attention and residual (section [5.4](#54-regularization)), learning rates and beam size on the Section 22 development set, all other parameters remained unchanged from the English-to-German base translation model. During inference, we increased the maximum output length to input length + 300. We used a beam size of 21 and $$\alpha$$=0.3 for both WSJ only and the semi-supervised setting.
+
+WSJのセクション22の開発セットを用いて、ドロップアウト率（アテンションおよび残差接続の両方。セクション[5.4](#54-regularization)参照）、学習率、ビームサイズといったハイパーパラメータの調整を限定的に行った。その他のパラメータはすべて、英独翻訳のベースモデルから変更していない。推論時には、最大出力長を「入力長＋300」に設定した。ビームサイズは21、$$\alpha$$は0.3とし、これはWSJのみを用いる設定と半教師あり学習の設定の双方で共通とした。
+
+Our results in Table [4](#table-4) show that despite the lack of task-specific tuning our model performs surprisingly well, yielding better results than all previously reported models with the exception of the Recurrent Neural Network Grammar [[8]](#8).
+
+表[4](#table-4)に示す結果から、タスク特有の調整を行っていないにもかかわらず、本モデルは驚くほど良好な性能を示すことがわかる。Recurrent Neural Network Grammar [[8]](#8) を除く、これまでに報告されたすべてのモデルを上回る結果が得られた。
+
+In contrast to RNN sequence-to-sequence models [[37]](#37), the Transformer outperforms the BerkeleyParser [[29]](#29) even when training only on the WSJ training set of 40K sentences.
+
+RNNを用いた系列変換（sequence-to-sequence）モデル [[37]](#37) とは対照的に、Transformerは、わずか4万文のWSJ学習データのみを用いた場合であっても、BerkeleyParser [[29]](#29) を上回る性能を達成した。
 
 ## 7 Conclusion
 
@@ -465,3 +778,37 @@ In Proceedings of the 51st Annual Meeting of the ACL (Volume 1: Long Papers), pa
 ### Attention Visualizations
 
 アテンションの可視化
+
+![FFigure 3:.](https://arxiv.org/html/1706.03762v7/making_more_difficult5_new.svg)
+
+Figure 3:An example of the attention mechanism following long-distance dependencies in the encoder self-attention in layer 5 of 6. Many of the attention heads attend to a distant dependency of the verb ‘making’, completing the phrase ‘making…more difficult’. Attentions here shown only for the word ‘making’. Different colors represent different heads. Best viewed in color.
+
+図3：全6層のうち第5層におけるエンコーダーの自己注意機構が、長距離の依存関係を捉えている例。多くのアテンションヘッドが、動詞「making」に関連する遠く離れた要素に注目しており、「making…more difficult」というフレーズを構成している。ここでは、「making」という単語に対するアテンションのみを示している。色分けはそれぞれ異なるアテンションヘッドに対応している。カラーでの閲覧を推奨。
+
+![FFigure 4.1:.](https://arxiv.org/html/1706.03762v7/anaphora_resolution_new.svg)
+
+![FFigure 4.2:.](https://arxiv.org/html/1706.03762v7/anaphora_resolution2_new.svg)
+
+Figure 4:Two attention heads, also in layer 5 of 6, apparently involved in anaphora resolution. Top: Full attentions for head 5. Bottom: Isolated attentions from just the word ‘its’ for attention heads 5 and 6. Note that the attentions are very sharp for this word.
+
+図4：6層のうちの第5層にある2つのアテンションヘッド。これらは照応解析に関与していると考えられる。上段：ヘッド5における全体的なアテンション。下段：単語「its」に注目した際のアテンション（ヘッド5およびヘッド6）。この単語に対しては、アテンションが非常に鋭くなっていることに注目されたい。
+
+![FFigure 5.1:.](https://arxiv.org/html/1706.03762v7/attending_to_head_new.svg)
+
+![FFigure 5.2:.](https://arxiv.org/html/1706.03762v7/attending_to_head2_new.svg)
+
+Figure 5:Many of the attention heads exhibit behaviour that seems related to the structure of the sentence. We give two such examples above, from two different heads from the encoder self-attention at layer 5 of 6. The heads clearly learned to perform different tasks.
+
+図5：多くのアテンションヘッドは、文の構造に関連していると思われる挙動を示す。上にはその例を2つ挙げた。これらは、全6層からなるエンコーダーの自己アテンション層のうち、第5層における異なる2つのヘッドから抽出したものである。各ヘッドがそれぞれ異なるタスクを実行するように学習していることは明らかである。
+
+## Annotation
+
+注釈
+
+[^1]: To illustrate why the dot products get large, assume that the components of $$q$$ and $$k$$ are independent random variables with mean 0 and variance 1. Then their dot product, $$q \cdot k = \sum_{i=1}^{d_k} q_i k_i$$, has mean 0 and variance $$d_k$$..
+
+[^11]: ドット積が大きくなる理由を説明するために、$$q$$ および $$k$$ の各成分が、平均0、分散1の独立な確率変数であると仮定する。このとき、それらのドット積 $$q \cdot k = \sum_{i=1}^{d_k} q_i k_i$$ は、平均0、分散 $$d_k$$ となる。
+
+[^2]: We used values of 2.8, 3.7, 6.0 and 9.5 TFLOPS for K80, K40, M40 and P100, respectively..
+
+[^12]: K80、K40、M40、P100の各GPUについて、それぞれ2.8、3.7、6.0、9.5 TFLOPSという値を使用しました。
